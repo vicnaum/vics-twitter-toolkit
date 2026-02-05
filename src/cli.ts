@@ -18,13 +18,60 @@ import { TwitterApi } from './api.js';
 import { TwitterApi45 } from './api45.js';
 import { buildConversationTree } from './tree.js';
 import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown } from './formatters.js';
+import { resolveAuth, saveApiKey, loadConfig, getConfigPath } from './config.js';
 
 const program = new Command();
 
 program
-  .name('twitter-toolkit')
-  .description('Twitter data extraction toolkit')
-  .version('0.1.0');
+  .name('twx')
+  .description('Twitter/X data extraction toolkit')
+  .version('0.1.0')
+  .option('--api-key <key>', 'RapidAPI key (saved to ~/.config/twx/.env for next time)');
+
+// ─── auth command ─────────────────────────────────────────────────────────────
+
+program
+  .command('auth')
+  .description('Save your RapidAPI key or check auth status')
+  .argument('[key]', 'RapidAPI key to save')
+  .action(async (key?: string) => {
+    if (key) {
+      await saveApiKey(key);
+      console.log(chalk.green(`API key saved to ${getConfigPath()}`));
+    } else {
+      // Show auth status
+      const configPath = getConfigPath();
+      const config = await loadConfig();
+      const envKey = process.env.RAPIDAPI_KEY;
+      const configKey = config['RAPIDAPI_KEY'];
+
+      console.log(chalk.bold('\nAuth status\n'));
+
+      if (envKey) {
+        console.log(`  ${chalk.green('✓')} RAPIDAPI_KEY found in environment`);
+        console.log(`    Key: ${envKey.slice(0, 8)}...${envKey.slice(-4)}`);
+      } else {
+        console.log(`  ${chalk.dim('✗')} RAPIDAPI_KEY not set in environment`);
+      }
+
+      if (configKey) {
+        console.log(`  ${chalk.green('✓')} RAPIDAPI_KEY found in ${configPath}`);
+        console.log(`    Key: ${configKey.slice(0, 8)}...${configKey.slice(-4)}`);
+      } else {
+        console.log(`  ${chalk.dim('✗')} No key in ${configPath}`);
+      }
+
+      if (!envKey && !configKey) {
+        console.log();
+        console.log(`  Run ${chalk.cyan('twx auth <your-rapidapi-key>')} to set up.`);
+        console.log(`  Get a key at: ${chalk.underline('https://rapidapi.com/alexanderxbx/api/twitter-api45/')}`);
+      }
+
+      console.log();
+    }
+  });
+
+// ─── thread command ───────────────────────────────────────────────────────────
 
 program
   .command('thread')
@@ -56,19 +103,8 @@ program
         debugMode: opts.debug ?? DEFAULT_CONFIG.debugMode,
       };
 
-      // Validate environment
-      const apiKey = process.env.RAPIDAPI_KEY;
-      const apiHost = process.env.RAPIDAPI_HOST_283;
-      if (!apiKey) {
-        console.error(chalk.red('Error: RAPIDAPI_KEY environment variable is required'));
-        process.exit(1);
-      }
-      if (!apiHost) {
-        console.error(chalk.red('Error: RAPIDAPI_HOST_283 environment variable is required'));
-        process.exit(1);
-      }
-
-      const api = new TwitterApi({ apiKey, apiHost, config });
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
+      const api = new TwitterApi({ apiKey: auth.apiKey, apiHost: auth.host283, config });
 
       console.log(chalk.bold(`\nFetching conversation for tweet ${tweetId}\n`));
 
@@ -164,16 +200,7 @@ program
     try {
       const username = parseUsername(input);
 
-      const apiKey = process.env.RAPIDAPI_KEY;
-      const apiHost = process.env.RAPIDAPI_HOST_45;
-      if (!apiKey) {
-        console.error(chalk.red('Error: RAPIDAPI_KEY environment variable is required'));
-        process.exit(1);
-      }
-      if (!apiHost) {
-        console.error(chalk.red('Error: RAPIDAPI_HOST_45 environment variable is required'));
-        process.exit(1);
-      }
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
 
       const config: UserTweetsConfig = {
         limit: opts.limit ?? 100,
@@ -183,7 +210,7 @@ program
         debugMode: opts.debug ?? false,
       };
 
-      const api = new TwitterApi45({ apiKey, apiHost, config });
+      const api = new TwitterApi45({ apiKey: auth.apiKey, apiHost: auth.host45, config });
 
       console.log(chalk.bold(`\nFetching tweets for @${username}\n`));
       if (config.fromDate) console.log(`  From: ${opts.from}`);
@@ -263,16 +290,7 @@ program
     try {
       const username = parseUsername(input);
 
-      const apiKey = process.env.RAPIDAPI_KEY;
-      const apiHost = process.env.RAPIDAPI_HOST_45;
-      if (!apiKey) {
-        console.error(chalk.red('Error: RAPIDAPI_KEY environment variable is required'));
-        process.exit(1);
-      }
-      if (!apiHost) {
-        console.error(chalk.red('Error: RAPIDAPI_HOST_45 environment variable is required'));
-        process.exit(1);
-      }
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
 
       const config: UserTweetsConfig = {
         limit: opts.limit ?? 100,
@@ -282,7 +300,7 @@ program
         debugMode: opts.debug ?? false,
       };
 
-      const api = new TwitterApi45({ apiKey, apiHost, config });
+      const api = new TwitterApi45({ apiKey: auth.apiKey, apiHost: auth.host45, config });
 
       console.log(chalk.bold(`\nFetching replies for @${username}\n`));
       if (config.fromDate) console.log(`  From: ${opts.from}`);
@@ -352,16 +370,7 @@ program
   .option('-o, --output-dir <dir>', 'Output directory', './output')
   .action(async (query: string, opts) => {
     try {
-      const apiKey = process.env.RAPIDAPI_KEY;
-      const apiHost = process.env.RAPIDAPI_HOST_45;
-      if (!apiKey) {
-        console.error(chalk.red('Error: RAPIDAPI_KEY environment variable is required'));
-        process.exit(1);
-      }
-      if (!apiHost) {
-        console.error(chalk.red('Error: RAPIDAPI_HOST_45 environment variable is required'));
-        process.exit(1);
-      }
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
 
       const searchConfig: SearchConfig = {
         limit: opts.limit ?? 100,
@@ -371,8 +380,8 @@ program
 
       // Construct API instance — debugMode comes from the UserTweetsConfig on the instance
       const api = new TwitterApi45({
-        apiKey,
-        apiHost,
+        apiKey: auth.apiKey,
+        apiHost: auth.host45,
         config: {
           limit: searchConfig.limit,
           includeReplies: false,

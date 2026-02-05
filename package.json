@@ -4,7 +4,7 @@
   "description": "CLI toolkit for extracting Twitter/X data — conversation trees, user timelines, and replies via RapidAPI",
   "type": "module",
   "bin": {
-    "twitter-toolkit": "./dist/cli.js"
+    "twx": "./dist/cli.js"
   },
   "scripts": {
     "dev": "tsx src/cli.ts",

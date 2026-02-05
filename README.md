@@ -8,13 +8,42 @@ Built on top of two RapidAPI Twitter endpoints (API 283 for conversations, API 4
 
 ```bash
 pnpm install
-cp .env.example .env
-# Edit .env and add your RapidAPI key
+pnpm build && npm link   # or: npx tsx src/cli.ts
+
+# Save your API key (one-time setup)
+twx auth <your-rapidapi-key>
+
+# Start using it
+twx search "bitcoin" --limit 10
+twx user-tweets @elonmusk --limit 50
 ```
 
 You'll need a [RapidAPI](https://rapidapi.com/) account and a subscription to one or both of:
 - [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `thread` command
 - [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) — for `user-tweets`, `user-replies`, and `search` commands
+
+## Authentication
+
+`twx` resolves your RapidAPI key in this order:
+
+1. **`--api-key` flag** — `twx search --api-key <key> "query"` (also saves the key for next time)
+2. **`RAPIDAPI_KEY` env var** — from your shell environment or a local `.env` file
+3. **`~/.config/twx/.env`** — global config, written by `twx auth`
+4. **Error** — prints setup instructions
+
+### `twx auth` — manage your API key
+
+```bash
+# Save your key
+twx auth <your-rapidapi-key>
+# → API key saved to ~/.config/twx/.env
+
+# Check auth status
+twx auth
+# → Shows where your key is coming from (env, config file, or not set)
+```
+
+API hosts (`twitter-api45.p.rapidapi.com` and `twitter283.p.rapidapi.com`) are hardcoded as defaults. You can override them via `RAPIDAPI_HOST_45` and `RAPIDAPI_HOST_283` env vars if needed.
 
 ## Commands
 
