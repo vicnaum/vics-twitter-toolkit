@@ -1,8 +1,35 @@
-# vics-twitter-toolkit
+# TWX - Vic's Twitter Toolkit
 
 A fast, opinionated CLI for pulling data out of Twitter/X. Fetches conversation threads, user timelines, replies, and search results — then dumps them as clean JSON and readable Markdown.
 
 Built on top of two RapidAPI Twitter endpoints (API 283 for conversations, API 45 for timelines/replies), with Zod-validated responses, automatic pagination, rate limiting, and retry logic baked in.
+
+## AI Agent Skill
+
+The `skills/twx/` directory contains a skill that lets AI coding agents (Claude Code, Cursor, Codex) use twx directly — fetching and analyzing Twitter data on your behalf.
+
+### Install the skill
+
+Copy `skills/twx/` into your agent's skills directory:
+
+```bash
+# Claude Code
+cp -r skills/twx ~/.claude/skills/twx
+
+# Cursor
+cp -r skills/twx ~/.cursor/skills/twx
+
+# Codex
+cp -r skills/twx ~/.codex/skills/twx
+```
+
+Once installed, the agent can respond to prompts like:
+- "Analyze @elonmusk's recent tweets"
+- "Fetch the thread at https://x.com/user/status/123456"
+- "Search Twitter for bitcoin discussions with 100+ likes"
+- "What has @naval been tweeting about this month?"
+
+The skill handles setup checks, auth prompts, command selection, and output analysis automatically.
 
 ## Quick start
 
@@ -51,19 +78,19 @@ API hosts (`twitter-api45.p.rapidapi.com` and `twitter283.p.rapidapi.com`) are h
 
 ```bash
 # Fetch last 100 tweets (default)
-pnpm dev user-tweets elonmusk
+twx user-tweets elonmusk
 
 # Fetch 50 tweets, @-prefix works too
-pnpm dev user-tweets @elonmusk --limit 50
+twx user-tweets @elonmusk --limit 50
 
 # Profile URL, date range, markdown only
-pnpm dev user-tweets "https://x.com/elonmusk" --from 2024-01-01 --to 2024-06-30 -f md
+twx user-tweets "https://x.com/elonmusk" --from 2024-01-01 --to 2024-06-30 -f md
 
 # Timeline + replies combined
-pnpm dev user-tweets elonmusk --include-replies --limit 200
+twx user-tweets elonmusk --include-replies --limit 200
 
 # Fetch everything available
-pnpm dev user-tweets elonmusk --limit 0
+twx user-tweets elonmusk --limit 0
 ```
 
 | Flag | Default | Description |
@@ -79,8 +106,8 @@ pnpm dev user-tweets elonmusk --limit 0
 ### `user-replies` — Fetch only a user's replies
 
 ```bash
-pnpm dev user-replies elonmusk
-pnpm dev user-replies @elonmusk --limit 50 --from 2024-01-01 -f json
+twx user-replies elonmusk
+twx user-replies @elonmusk --limit 50 --from 2024-01-01 -f json
 ```
 
 Same options as `user-tweets` (minus `--include-replies`). Fetches from the `/replies.php` endpoint, filtered to only the target user's own tweets.
@@ -89,19 +116,19 @@ Same options as `user-tweets` (minus `--include-replies`). Fetches from the `/re
 
 ```bash
 # Basic search
-pnpm dev search "bitcoin"
+twx search "bitcoin"
 
 # From a specific user
-pnpm dev search "from:elonmusk" --limit 50
+twx search "from:elonmusk" --limit 50
 
 # Popular tweets about a topic
-pnpm dev search "bitcoin min_faves:100" --sort top --limit 20
+twx search "bitcoin min_faves:100" --sort top --limit 20
 
 # Date range using query operators
-pnpm dev search "from:elonmusk since:2024-01-01 until:2024-06-30"
+twx search "from:elonmusk since:2024-01-01 until:2024-06-30"
 
 # JSON only output
-pnpm dev search "ethereum -filter:replies" -f json
+twx search "ethereum -filter:replies" -f json
 ```
 
 | Flag | Default | Description |
@@ -118,16 +145,16 @@ Date filtering is done via `since:` and `until:` operators in the query string (
 
 ```bash
 # By tweet ID
-pnpm dev thread 2019212107020136611
+twx thread 2019212107020136611
 
 # By URL
-pnpm dev thread "https://x.com/elonmusk/status/2019212107020136611"
+twx thread "https://x.com/elonmusk/status/2019212107020136611"
 
 # Markdown only, custom output dir
-pnpm dev thread 2019212107020136611 -f md -o ./threads
+twx thread 2019212107020136611 -f md -o ./threads
 
 # Exclude quote tweets
-pnpm dev thread 2019212107020136611 --no-quotes
+twx thread 2019212107020136611 --no-quotes
 ```
 
 | Flag | Default | Description |
