@@ -90,6 +90,24 @@ export interface UserTweetsResult {
   };
 }
 
+/** Configuration for search */
+export interface SearchConfig {
+  limit: number;
+  sort: 'top' | 'recent';
+  debugMode: boolean;
+}
+
+/** Result of a search query */
+export interface SearchResult {
+  query: string;
+  tweets: RawTweet[];
+  stats: {
+    totalTweets: number;
+    pagesFetched: number;
+    dateRange: { from: string | null; to: string | null };
+  };
+}
+
 export const DEFAULT_CONFIG: ConversationConfig = {
   includeQuotes: true,
   detailMaxPages: 25,

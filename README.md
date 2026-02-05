@@ -1,6 +1,6 @@
 # vics-twitter-toolkit
 
-A fast, opinionated CLI for pulling data out of Twitter/X. Fetches conversation threads, user timelines, and replies — then dumps them as clean JSON and readable Markdown.
+A fast, opinionated CLI for pulling data out of Twitter/X. Fetches conversation threads, user timelines, replies, and search results — then dumps them as clean JSON and readable Markdown.
 
 Built on top of two RapidAPI Twitter endpoints (API 283 for conversations, API 45 for timelines/replies), with Zod-validated responses, automatic pagination, rate limiting, and retry logic baked in.
 
@@ -13,8 +13,8 @@ cp .env.example .env
 ```
 
 You'll need a [RapidAPI](https://rapidapi.com/) account and a subscription to one or both of:
-- [twitter283](https://rapidapi.com/Starter283/api/twitter283/) — for `thread` command
-- [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) — for `user-tweets` and `user-replies` commands
+- [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `thread` command
+- [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) — for `user-tweets`, `user-replies`, and `search` commands
 
 ## Commands
 
@@ -55,6 +55,35 @@ pnpm dev user-replies @elonmusk --limit 50 --from 2024-01-01 -f json
 ```
 
 Same options as `user-tweets` (minus `--include-replies`). Fetches from the `/replies.php` endpoint, filtered to only the target user's own tweets.
+
+### `search` — Search tweets
+
+```bash
+# Basic search
+pnpm dev search "bitcoin"
+
+# From a specific user
+pnpm dev search "from:elonmusk" --limit 50
+
+# Popular tweets about a topic
+pnpm dev search "bitcoin min_faves:100" --sort top --limit 20
+
+# Date range using query operators
+pnpm dev search "from:elonmusk since:2024-01-01 until:2024-06-30"
+
+# JSON only output
+pnpm dev search "ethereum -filter:replies" -f json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-l, --limit <n>` | `100` | Max tweets to fetch (0 = unlimited) |
+| `-s, --sort <order>` | `recent` | Sort order: `top` or `recent` |
+| `--debug` | — | Save raw API responses to `./raw_response/` |
+| `-f, --format <fmt>` | `both` | `json`, `md`, or `both` |
+| `-o, --output-dir <dir>` | `./output` | Output directory |
+
+Date filtering is done via `since:` and `until:` operators in the query string (see [Advanced search operators](#advanced-search-operators) below).
 
 ### `thread` — Fetch a full conversation tree
 
@@ -144,10 +173,38 @@ pnpm lint             # type-check without emitting
 
 | API | Endpoint | Used by |
 |-----|----------|---------|
-| [twitter283](https://rapidapi.com/Starter283/api/twitter283/) | `TweetDetailConversationv2` | `thread` |
-| [twitter283](https://rapidapi.com/Starter283/api/twitter283/) | `Search` | `thread` (backfill) |
+| [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) | `TweetDetailConversationv2` | `thread` |
+| [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) | `Search` | `thread` (backfill) |
 | [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) | `/timeline.php` | `user-tweets` |
 | [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) | `/replies.php` | `user-tweets --include-replies`, `user-replies` |
+| [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) | `/search.php` | `search` |
+
+## Advanced search operators
+
+The `search` command passes your query string directly to the Twitter API. You can use any of Twitter's advanced search operators:
+
+| Operator | Example | Description |
+|----------|---------|-------------|
+| `"exact phrase"` | `"to the moon"` | Exact phrase match |
+| `OR` | `bitcoin OR ethereum` | Match either term |
+| `-word` | `bitcoin -scam` | Exclude word |
+| `from:` | `from:elonmusk` | Tweets by user |
+| `to:` | `to:elonmusk` | Replies to user |
+| `@mention` | `@elonmusk` | Mentions of user |
+| `filter:links` | `bitcoin filter:links` | Only tweets with links |
+| `filter:images` | `cats filter:images` | Only tweets with images |
+| `filter:videos` | `tutorial filter:videos` | Only tweets with videos |
+| `-filter:replies` | `from:elonmusk -filter:replies` | Exclude replies |
+| `min_faves:` | `bitcoin min_faves:100` | Minimum likes |
+| `min_retweets:` | `bitcoin min_retweets:50` | Minimum retweets |
+| `min_replies:` | `bitcoin min_replies:10` | Minimum replies |
+| `since:` | `since:2024-01-01` | Tweets after date (YYYY-MM-DD) |
+| `until:` | `until:2024-06-30` | Tweets before date (YYYY-MM-DD) |
+| `lang:` | `bitcoin lang:en` | Language filter |
+| `conversation_id:` | `conversation_id:123456` | Tweets in a conversation |
+| `-is:retweet` | `from:elonmusk -is:retweet` | Exclude retweets |
+
+Operators can be combined: `from:elonmusk bitcoin min_faves:100 since:2024-01-01 -filter:replies`
 
 ## License
 

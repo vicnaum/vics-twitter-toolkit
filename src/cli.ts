@@ -10,14 +10,14 @@ import ora from 'ora';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
-import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult } from './types/index.js';
+import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult, SearchConfig, SearchResult } from './types/index.js';
 import { DEFAULT_CONFIG } from './types/index.js';
 import { parseTweetId, parseUsername } from './utils/input-parser.js';
-import { ensureDir } from './utils/index.js';
+import { ensureDir, sanitizeQueryForFilename } from './utils/index.js';
 import { TwitterApi } from './api.js';
 import { TwitterApi45 } from './api45.js';
 import { buildConversationTree } from './tree.js';
-import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown } from './formatters.js';
+import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown } from './formatters.js';
 
 const program = new Command();
 
@@ -329,6 +329,99 @@ program
       console.log(chalk.bold('Results'));
       console.log(`  User: @${username}`);
       console.log(`  Replies: ${tweets.length}`);
+      console.log(`  Pages fetched: ${pagesFetched}`);
+      if (result.stats.dateRange.from) {
+        console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
+      }
+      console.log(`  Output: ${opts.outputDir}/`);
+      console.log();
+    } catch (err) {
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('search')
+  .description('Search tweets (supports Twitter advanced operators)')
+  .argument('<query>', 'Search query string (e.g. "from:elonmusk", "bitcoin min_faves:100")')
+  .option('-l, --limit <n>', 'Max tweets to fetch (0 = unlimited)', parseInt, 100)
+  .option('-s, --sort <order>', 'Sort order: top, recent', 'recent')
+  .option('--debug', 'Save raw API responses')
+  .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
+  .option('-o, --output-dir <dir>', 'Output directory', './output')
+  .action(async (query: string, opts) => {
+    try {
+      const apiKey = process.env.RAPIDAPI_KEY;
+      const apiHost = process.env.RAPIDAPI_HOST_45;
+      if (!apiKey) {
+        console.error(chalk.red('Error: RAPIDAPI_KEY environment variable is required'));
+        process.exit(1);
+      }
+      if (!apiHost) {
+        console.error(chalk.red('Error: RAPIDAPI_HOST_45 environment variable is required'));
+        process.exit(1);
+      }
+
+      const searchConfig: SearchConfig = {
+        limit: opts.limit ?? 100,
+        sort: opts.sort === 'top' ? 'top' : 'recent',
+        debugMode: opts.debug ?? false,
+      };
+
+      // Construct API instance — debugMode comes from the UserTweetsConfig on the instance
+      const api = new TwitterApi45({
+        apiKey,
+        apiHost,
+        config: {
+          limit: searchConfig.limit,
+          includeReplies: false,
+          debugMode: searchConfig.debugMode,
+        },
+      });
+
+      console.log(chalk.bold(`\nSearching: "${query}"\n`));
+      console.log(`  Sort: ${searchConfig.sort}`);
+      console.log(`  Limit: ${searchConfig.limit === 0 ? 'unlimited' : searchConfig.limit}`);
+      console.log();
+
+      const spinner = ora('Searching tweets...').start();
+      const { tweets, pagesFetched } = await api.searchTweets(query, searchConfig);
+      spinner.succeed(`Found ${tweets.length} tweets from ${pagesFetched} pages`);
+
+      // Sort by date descending (newest first)
+      tweets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const result: SearchResult = {
+        query,
+        tweets,
+        stats: {
+          totalTweets: tweets.length,
+          pagesFetched,
+          dateRange: {
+            from: tweets.length > 0 ? tweets[tweets.length - 1]!.createdAt : null,
+            to: tweets.length > 0 ? tweets[0]!.createdAt : null,
+          },
+        },
+      };
+
+      // Write output
+      await ensureDir(opts.outputDir);
+      const base = join(opts.outputDir, `search_${sanitizeQueryForFilename(query)}`);
+      const fmt = opts.format as string;
+
+      if (fmt === 'json' || fmt === 'both') {
+        await writeFile(`${base}.json`, searchToJson(result));
+      }
+      if (fmt === 'md' || fmt === 'both') {
+        await writeFile(`${base}.md`, searchToMarkdown(result));
+      }
+
+      // Summary
+      console.log();
+      console.log(chalk.bold('Results'));
+      console.log(`  Query: "${query}"`);
+      console.log(`  Total tweets: ${result.stats.totalTweets}`);
       console.log(`  Pages fetched: ${pagesFetched}`);
       if (result.stats.dateRange.from) {
         console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);

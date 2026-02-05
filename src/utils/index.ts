@@ -85,6 +85,11 @@ export function sanitizeString(str: string | null | undefined): string {
   return str.replace(/\x00/g, '');
 }
 
+/** Sanitize a query string for use as a filename */
+export function sanitizeQueryForFilename(query: string): string {
+  return query.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 60);
+}
+
 /** Parse comma-separated view count string: "1,234,567" -> 1234567 */
 export function parseViewCount(views: string | undefined): number | undefined {
   if (!views) return undefined;

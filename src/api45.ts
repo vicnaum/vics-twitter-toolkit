@@ -3,7 +3,7 @@
 // Ported from twitter-stats with Zod validation and RawTweet conversion.
 
 import { z } from 'zod';
-import type { RawTweet, UserTweetsConfig } from './types/index.js';
+import type { RawTweet, UserTweetsConfig, SearchConfig } from './types/index.js';
 import {
   retry,
   log,
@@ -159,6 +159,67 @@ export class TwitterApi45 {
     }
 
     return { tweets, pagesFetched: pages };
+  }
+
+  /** Search tweets via /search.php */
+  async searchTweets(
+    query: string,
+    config: SearchConfig,
+  ): Promise<{ tweets: RawTweet[]; pagesFetched: number }> {
+    const seen = new Set<string>();
+    const collected: RawTweet[] = [];
+    let cursor: string | undefined;
+    let page = 0;
+    const unlimited = config.limit === 0;
+    const searchType = config.sort === 'top' ? 'Top' : 'Latest';
+
+    while (true) {
+      page++;
+
+      // Rate limiting
+      await sleep(PRE_REQUEST_DELAY_MS);
+
+      let url = `https://${this.apiHost}/search.php?query=${encodeURIComponent(query)}&search_type=${searchType}`;
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+      log(`search page ${page}${cursor ? ' (cursor)' : ''}`);
+
+      const response = await this.fetchWithApiRetry(url, `search_p${page}`);
+      if (!response) break;
+
+      const parsed = Api45TimelineResponseSchema.safeParse(response);
+      if (!parsed.success) {
+        log(`search page ${page}: Zod parse error: ${parsed.error.message}`, 'warn');
+        break;
+      }
+
+      const { timeline, next_cursor } = parsed.data;
+
+      if (timeline.length === 0) {
+        log(`search page ${page}: empty timeline, stopping`);
+        break;
+      }
+
+      let newCount = 0;
+      for (const raw of timeline) {
+        if (seen.has(raw.tweet_id)) continue;
+        seen.add(raw.tweet_id);
+
+        collected.push(convertApi45Tweet(raw));
+        newCount++;
+
+        if (!unlimited && collected.length >= config.limit) break;
+      }
+
+      log(`search page ${page}: ${timeline.length} tweets, ${newCount} new`);
+
+      if (!unlimited && collected.length >= config.limit) break;
+      if (!next_cursor) break;
+      cursor = next_cursor;
+    }
+
+    log(`search complete: ${collected.length} tweets from ${page} pages`);
+    return { tweets: collected, pagesFetched: page };
   }
 
   /** Paginate a single endpoint (timeline.php or replies.php) */

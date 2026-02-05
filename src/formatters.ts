@@ -1,6 +1,6 @@
 // Output formatters for conversation trees
 
-import type { ConversationTree, TweetNode, UserTweetsResult, RawTweet } from './types/index.js';
+import type { ConversationTree, TweetNode, UserTweetsResult, SearchResult, RawTweet } from './types/index.js';
 
 export function toJson(tree: ConversationTree): string {
   return JSON.stringify(
@@ -82,6 +82,50 @@ export function tweetsToMarkdown(result: UserTweetsResult): string {
   let out = `# Tweets by @${username}\n\n`;
   out += `**Total:** ${stats.totalTweets} tweets`;
   out += ` (${stats.originalTweets} original, ${stats.replyTweets} replies)`;
+  out += ` | **Pages fetched:** ${stats.pagesFetched}\n`;
+  if (stats.dateRange.from || stats.dateRange.to) {
+    out += `**Date range:** ${stats.dateRange.from ?? '...'} — ${stats.dateRange.to ?? '...'}\n`;
+  }
+  out += '\n---\n\n';
+
+  for (const tweet of tweets) {
+    const date = new Date(tweet.createdAt).toLocaleString();
+    const isReply = tweet.parentId != null;
+    const replyTag = isReply ? ' *(reply)*' : '';
+    const tweetUrl = `https://x.com/${tweet.author.handle}/status/${tweet.id}`;
+
+    out += `> **@${tweet.author.handle}**${replyTag} — ${date}\n`;
+    for (const line of tweet.text.split('\n')) {
+      out += `> ${line}\n`;
+    }
+    const engagement = formatEngagement(tweet);
+    if (engagement) {
+      out += `>\n> *${engagement}*\n`;
+    }
+    out += `>\n> [Link](${tweetUrl})\n\n`;
+  }
+
+  return out;
+}
+
+// ─── Search Formatters ──────────────────────────────────────────────────────
+
+export function searchToJson(result: SearchResult): string {
+  return JSON.stringify(
+    {
+      query: result.query,
+      stats: result.stats,
+      tweets: result.tweets,
+    },
+    null,
+    2,
+  );
+}
+
+export function searchToMarkdown(result: SearchResult): string {
+  const { query, tweets, stats } = result;
+  let out = `# Search: "${query}"\n\n`;
+  out += `**Total:** ${stats.totalTweets} tweets`;
   out += ` | **Pages fetched:** ${stats.pagesFetched}\n`;
   if (stats.dateRange.from || stats.dateRange.to) {
     out += `**Date range:** ${stats.dateRange.from ?? '...'} — ${stats.dateRange.to ?? '...'}\n`;
