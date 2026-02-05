@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+raw_response/
+output/
+*.tsbuildinfo
+.DS_Store

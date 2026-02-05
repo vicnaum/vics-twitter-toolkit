@@ -1,0 +1,43 @@
+{
+  "name": "vics-twitter-toolkit",
+  "version": "0.1.0",
+  "description": "CLI toolkit for extracting Twitter/X data — conversation trees, user timelines, and replies via RapidAPI",
+  "type": "module",
+  "bin": {
+    "twitter-toolkit": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
+  },
+  "keywords": [
+    "twitter",
+    "x",
+    "api",
+    "toolkit",
+    "conversation",
+    "thread"
+  ],
+  "author": "Victor Naumik",
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "dotenv": "^17.2.3",
+    "ora": "^9.3.0",
+    "p-retry": "^7.1.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
