@@ -1,6 +1,6 @@
 # TWX - Vic's Twitter Toolkit
 
-A fast, opinionated CLI for pulling data out of Twitter/X. Fetches conversation threads, user timelines, replies, and search results — then dumps them as clean JSON and readable Markdown.
+A fast, opinionated CLI for pulling data out of Twitter/X. Fetches user profiles, conversation threads, timelines, replies, and search results — then dumps them as clean JSON and readable Markdown.
 
 Built on top of two RapidAPI Twitter endpoints (API 283 for conversations, API 45 for timelines/replies), with Zod-validated responses, automatic pagination, rate limiting, and retry logic baked in.
 
@@ -25,6 +25,7 @@ cp -r skills/twx ~/.codex/skills/twx
 
 Once installed, the agent can respond to prompts like:
 - "Analyze @elonmusk's recent tweets"
+- "Get @solana's profile info"
 - "Fetch the thread at https://x.com/user/status/123456"
 - "Search Twitter for bitcoin discussions with 100+ likes"
 - "What has @naval been tweeting about this month?"
@@ -41,12 +42,13 @@ pnpm build && npm link   # or: npx tsx src/cli.ts
 twx auth <your-rapidapi-key>
 
 # Start using it
+twx profile @solana
 twx search "bitcoin" --limit 10
 twx user-tweets @elonmusk --limit 50
 ```
 
 You'll need a [RapidAPI](https://rapidapi.com/) account and a subscription to one or both of:
-- [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `thread` command
+- [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `profile` and `thread` commands
 - [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) — for `user-tweets`, `user-replies`, and `search` commands
 
 ## Authentication
@@ -72,7 +74,40 @@ twx auth
 
 API hosts (`twitter-api45.p.rapidapi.com` and `twitter283.p.rapidapi.com`) are hardcoded as defaults. You can override them via `RAPIDAPI_HOST_45` and `RAPIDAPI_HOST_283` env vars if needed.
 
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--api-key <key>` | RapidAPI key (also saves to config for next time) |
+| `-p, --print` | Print output to terminal instead of writing files |
+
+`-p` works with any command. Handy for quick lookups:
+
+```bash
+twx -p profile solana              # print markdown profile to terminal
+twx -p profile solana -f json      # print JSON instead
+twx -p search "bitcoin" --limit 5  # preview search results in terminal
+```
+
+When `-p` is used with `-f both`, markdown is printed (the human-readable format).
+
 ## Commands
+
+### `profile` — Fetch a user profile
+
+```bash
+twx profile solana
+twx profile @elonmusk -f json
+twx profile "https://x.com/levelsio" -f md
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--debug` | — | Save raw API response to `./raw_response/` |
+| `-f, --format <fmt>` | `both` | `json`, `md`, or `both` |
+| `-o, --output-dir <dir>` | `./output` | Output directory |
+
+Uses API 283 (`/UserResultByScreenName`). Returns bio, location, website, follower/following counts, tweet/media/like counts, verification status, and pinned tweets.
 
 ### `user-tweets` — Fetch a user's timeline
 
@@ -229,6 +264,7 @@ pnpm lint             # type-check without emitting
 
 | API | Endpoint | Used by |
 |-----|----------|---------|
+| [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) | `UserResultByScreenName` | `profile` |
 | [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) | `TweetDetailConversationv2` | `thread` |
 | [twitter283](https://rapidapi.com/sociallab-sociallab-default/api/twitter283) | `Search` | `thread` (backfill) |
 | [twitter-api45](https://rapidapi.com/alexanderxbx/api/twitter-api45/) | `/timeline.php` | `user-tweets` |

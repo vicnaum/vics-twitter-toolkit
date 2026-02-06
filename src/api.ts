@@ -3,8 +3,8 @@
 // - Config passed as constructor param (no module-level env reads)
 // - Class-based for clean state management and testability
 
-import type { RawTweet, ConversationConfig } from './types/index.js';
-import { retry, log, fetchWithTimeout, parseRetryAfter, ensureDir } from './utils/index.js';
+import type { RawTweet, ConversationConfig, UserProfile } from './types/index.js';
+import { retry, log, fetchWithTimeout, parseRetryAfter, ensureDir, sanitizeString, parseTwitterDate } from './utils/index.js';
 import { parseSearchResponse, parseTweetDetailResponse } from './parser.js';
 import { writeFile } from 'fs/promises';
 
@@ -258,6 +258,32 @@ export class TwitterApi {
     return allTweets;
   }
 
+  // ─── Profile ─────────────────────────────────────────────────────────────
+
+  /** Fetch a user profile via /UserResultByScreenName */
+  async fetchUserProfile(username: string): Promise<UserProfile> {
+    const url = `https://${this.apiHost}/UserResultByScreenName?username=${encodeURIComponent(username)}`;
+
+    const response = await retry(
+      async () => {
+        const res = await fetchWithTimeout(url, { method: 'GET', headers: this.headers });
+        if (!res.ok) {
+          const err: any = new Error(`Profile API ${res.status} ${res.statusText}`);
+          if (res.status === 429)
+            err.retryAfterMs = parseRetryAfter(res.headers.get('retry-after')) ?? 1000;
+          throw err;
+        }
+        return res.json();
+      },
+      1,
+      'Profile',
+    );
+
+    await this.saveRawResponse(username, 'profile', response, 0);
+
+    return parseUserProfile(response, username);
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private extractShowMoreCursors(response: any, cursors: string[]) {
@@ -273,4 +299,45 @@ export class TwitterApi {
       }
     }
   }
+}
+
+// ─── Profile Parsing ──────────────────────────────────────────────────────────
+
+function extractWebsiteUrl(result: any): string | null {
+  try {
+    const urls = result.profile_bio?.entities?.url?.urls;
+    if (Array.isArray(urls) && urls.length > 0) {
+      return urls[0].expanded_url || urls[0].display_url || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/** Parse API 283 /UserResultByScreenName response into UserProfile */
+export function parseUserProfile(response: any, username: string): UserProfile {
+  const result = response?.data?.user_results?.result;
+  if (!result || result.__typename !== 'User') {
+    throw new Error(`User not found: @${username}`);
+  }
+
+  return {
+    id: result.rest_id,
+    handle: result.core.screen_name,
+    name: result.core.name,
+    bio: sanitizeString(result.profile_bio?.description ?? ''),
+    location: result.location?.location ?? '',
+    website: extractWebsiteUrl(result),
+    avatarUrl: (result.avatar?.image_url ?? '').replace('_normal', '_400x400'),
+    bannerUrl: result.banner?.image_url ?? null,
+    createdAt: parseTwitterDate(result.core.created_at),
+    followerCount: result.relationship_counts?.followers ?? 0,
+    followingCount: result.relationship_counts?.following ?? 0,
+    tweetCount: result.tweet_counts?.tweets ?? 0,
+    mediaCount: result.tweet_counts?.media_tweets ?? 0,
+    likeCount: result.action_counts?.favorites_count ?? 0,
+    isVerified: result.verification?.is_blue_verified ?? false,
+    verifiedType: result.verification?.verified_type ?? null,
+    pinnedTweetIds: result.pinned_items?.tweet_ids_str ?? [],
+    profileImageShape: result.profile_image_shape ?? 'Circle',
+  };
 }

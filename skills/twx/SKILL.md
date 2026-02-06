@@ -5,7 +5,7 @@ description: "Fetch and analyze Twitter/X data using the twx CLI tool. Use when 
 
 # twx — Twitter/X Data Extraction
 
-CLI tool at `/Users/vicnaum/github/twitter-tools/twitter-toolkit/` that fetches tweets, threads, timelines, replies, and search results from Twitter/X via RapidAPI.
+CLI tool at `/Users/vicnaum/github/vics-twitter-tools/twitter-toolkit/` that fetches tweets, threads, timelines, replies, and search results from Twitter/X via RapidAPI.
 
 ## Setup Check
 
@@ -13,27 +13,55 @@ Before running any command, verify twx is ready:
 
 ```bash
 # Check if dependencies are installed
-ls /Users/vicnaum/github/twitter-tools/twitter-toolkit/node_modules/.package-lock.json 2>/dev/null || (cd /Users/vicnaum/github/twitter-tools/twitter-toolkit && pnpm install)
+ls /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit/node_modules/.package-lock.json 2>/dev/null || (cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && pnpm install)
 
 # Check auth status
-cd /Users/vicnaum/github/twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth
+cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth
 ```
 
 If no API key is found, ask the user to provide their RapidAPI key, then run:
 
 ```bash
-cd /Users/vicnaum/github/twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth <key>
+cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth <key>
 ```
 
 The user needs a RapidAPI subscription to one or both of:
 - **twitter-api45** (https://rapidapi.com/alexanderxbx/api/twitter-api45/) — for `user-tweets`, `user-replies`, `search`
-- **twitter283** (https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `thread`
+- **twitter283** (https://rapidapi.com/sociallab-sociallab-default/api/twitter283) — for `profile`, `thread`
 
 ## Running Commands
 
-All commands use: `cd /Users/vicnaum/github/twitter-tools/twitter-toolkit && npx tsx src/cli.ts <command> [args]`
+All commands use: `cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts <command> [args]`
 
 Always use `-f json` for analysis tasks (structured data). Use `-f md` for human-readable output. Use `-o /tmp/twx` or another temp dir to avoid polluting the project directory.
+
+### Global flag: `-p` (print to terminal)
+
+Add `-p` before the command to print output to stdout instead of writing files. Useful for quick lookups or when piping output:
+
+```bash
+npx tsx src/cli.ts -p profile solana
+npx tsx src/cli.ts -p search "bitcoin" --limit 5 -f json
+```
+
+When `-p` is used with `-f both`, markdown is printed.
+
+### Fetch User Profile
+
+```bash
+npx tsx src/cli.ts profile solana -f json -o /tmp/twx
+npx tsx src/cli.ts profile @elonmusk -f json -o /tmp/twx
+npx tsx src/cli.ts profile "https://x.com/levelsio" -f json -o /tmp/twx
+```
+
+Flags: `-f json|md|both`, `-o <dir>`, `--debug`
+
+Returns: bio, location, website, follower/following counts, tweet/media/like counts, verification status, pinned tweet IDs, profile image shape.
+
+JSON output structure for profiles:
+```json
+{"id":"...","handle":"...","name":"...","bio":"...","location":"...","website":"...","followerCount":0,"followingCount":0,"tweetCount":0,"mediaCount":0,"likeCount":0,"isVerified":false,"verifiedType":null,"pinnedTweetIds":[],"profileImageShape":"Circle"}
+```
 
 ### Fetch User Timeline
 
@@ -110,6 +138,11 @@ All commands accept flexible input:
 JSON output structure for timelines/search:
 ```json
 {"username":"...","tweets":[{"id":"...","text":"...","createdAt":"...","author":{"handle":"...","name":"..."},"replyCount":0,"favoriteCount":0,"retweetCount":0,"viewCount":0}],"stats":{...}}
+```
+
+JSON output structure for profiles:
+```json
+{"id":"...","handle":"...","name":"...","bio":"...","followerCount":0,"followingCount":0,"tweetCount":0,"isVerified":false}
 ```
 
 JSON output structure for threads:

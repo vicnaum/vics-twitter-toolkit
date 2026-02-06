@@ -10,14 +10,14 @@ import ora from 'ora';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
-import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult, SearchConfig, SearchResult } from './types/index.js';
+import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult, SearchConfig, SearchResult, UserProfile } from './types/index.js';
 import { DEFAULT_CONFIG } from './types/index.js';
 import { parseTweetId, parseUsername } from './utils/input-parser.js';
 import { ensureDir, sanitizeQueryForFilename } from './utils/index.js';
 import { TwitterApi } from './api.js';
 import { TwitterApi45 } from './api45.js';
 import { buildConversationTree } from './tree.js';
-import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown } from './formatters.js';
+import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown, profileToJson, profileToMarkdown } from './formatters.js';
 import { resolveAuth, saveApiKey, loadConfig, getConfigPath } from './config.js';
 
 const program = new Command();
@@ -26,7 +26,39 @@ program
   .name('twx')
   .description('Twitter/X data extraction toolkit')
   .version('0.1.0')
-  .option('--api-key <key>', 'RapidAPI key (saved to ~/.config/twx/.env for next time)');
+  .option('--api-key <key>', 'RapidAPI key (saved to ~/.config/twx/.env for next time)')
+  .option('-p, --print', 'Print output to terminal instead of writing files');
+
+// ─── Output helper ───────────────────────────────────────────────────────────
+
+async function writeOutput(
+  opts: { format: string; outputDir: string },
+  baseName: string,
+  content: { json: string; md: string },
+) {
+  const fmt = opts.format as string;
+
+  if (program.opts().print) {
+    // Print to stdout — for 'both', default to markdown (human-readable)
+    console.log();
+    if (fmt === 'json') {
+      console.log(content.json);
+    } else {
+      console.log(content.md);
+    }
+  } else {
+    // Write to files
+    await ensureDir(opts.outputDir);
+    const base = join(opts.outputDir, baseName);
+    if (fmt === 'json' || fmt === 'both') {
+      await writeFile(`${base}.json`, content.json);
+    }
+    if (fmt === 'md' || fmt === 'both') {
+      await writeFile(`${base}.md`, content.md);
+    }
+    console.log(`  Output: ${opts.outputDir}/`);
+  }
+}
 
 // ─── auth command ─────────────────────────────────────────────────────────────
 
@@ -154,27 +186,18 @@ program
 
       tree.stats.pagesFetched = Math.ceil(unique.length / 20);
 
-      // Step 5: Write output
-      await ensureDir(opts.outputDir);
-      const base = join(opts.outputDir, tweetId);
-      const fmt = opts.format as string;
+      // Step 5: Output
+      await writeOutput(opts, tweetId, { json: toJson(tree), md: toMarkdown(tree) });
 
-      if (fmt === 'json' || fmt === 'both') {
-        await writeFile(`${base}.json`, toJson(tree));
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(
+          `  Root: @${tree.root.author.handle} — ${tree.root.text.substring(0, 120)}${tree.root.text.length > 120 ? '...' : ''}`,
+        );
+        console.log(`  Total tweets: ${tree.stats.totalTweets}`);
+        console.log(`  Dangling parents: ${tree.stats.danglingParents}`);
       }
-      if (fmt === 'md' || fmt === 'both') {
-        await writeFile(`${base}.md`, toMarkdown(tree));
-      }
-
-      // Summary
-      console.log();
-      console.log(chalk.bold('Results'));
-      console.log(
-        `  Root: @${tree.root.author.handle} — ${tree.root.text.substring(0, 120)}${tree.root.text.length > 120 ? '...' : ''}`,
-      );
-      console.log(`  Total tweets: ${tree.stats.totalTweets}`);
-      console.log(`  Dangling parents: ${tree.stats.danglingParents}`);
-      console.log(`  Output: ${opts.outputDir}/`);
       console.log();
     } catch (err) {
       console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -243,29 +266,20 @@ program
         },
       };
 
-      // Write output
-      await ensureDir(opts.outputDir);
-      const base = join(opts.outputDir, `${username}_tweets`);
-      const fmt = opts.format as string;
+      // Output
+      await writeOutput(opts, `${username}_tweets`, { json: tweetsToJson(result), md: tweetsToMarkdown(result) });
 
-      if (fmt === 'json' || fmt === 'both') {
-        await writeFile(`${base}.json`, tweetsToJson(result));
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(`  User: @${username}`);
+        console.log(`  Total tweets: ${result.stats.totalTweets}`);
+        console.log(`  Original: ${result.stats.originalTweets} | Replies: ${result.stats.replyTweets}`);
+        console.log(`  Pages fetched: ${pagesFetched}`);
+        if (result.stats.dateRange.from) {
+          console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
+        }
       }
-      if (fmt === 'md' || fmt === 'both') {
-        await writeFile(`${base}.md`, tweetsToMarkdown(result));
-      }
-
-      // Summary
-      console.log();
-      console.log(chalk.bold('Results'));
-      console.log(`  User: @${username}`);
-      console.log(`  Total tweets: ${result.stats.totalTweets}`);
-      console.log(`  Original: ${result.stats.originalTweets} | Replies: ${result.stats.replyTweets}`);
-      console.log(`  Pages fetched: ${pagesFetched}`);
-      if (result.stats.dateRange.from) {
-        console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
-      }
-      console.log(`  Output: ${opts.outputDir}/`);
       console.log();
     } catch (err) {
       console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -330,28 +344,19 @@ program
         },
       };
 
-      // Write output
-      await ensureDir(opts.outputDir);
-      const base = join(opts.outputDir, `${username}_replies`);
-      const fmt = opts.format as string;
+      // Output
+      await writeOutput(opts, `${username}_replies`, { json: tweetsToJson(result), md: tweetsToMarkdown(result) });
 
-      if (fmt === 'json' || fmt === 'both') {
-        await writeFile(`${base}.json`, tweetsToJson(result));
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(`  User: @${username}`);
+        console.log(`  Replies: ${tweets.length}`);
+        console.log(`  Pages fetched: ${pagesFetched}`);
+        if (result.stats.dateRange.from) {
+          console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
+        }
       }
-      if (fmt === 'md' || fmt === 'both') {
-        await writeFile(`${base}.md`, tweetsToMarkdown(result));
-      }
-
-      // Summary
-      console.log();
-      console.log(chalk.bold('Results'));
-      console.log(`  User: @${username}`);
-      console.log(`  Replies: ${tweets.length}`);
-      console.log(`  Pages fetched: ${pagesFetched}`);
-      if (result.stats.dateRange.from) {
-        console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
-      }
-      console.log(`  Output: ${opts.outputDir}/`);
       console.log();
     } catch (err) {
       console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -414,28 +419,70 @@ program
         },
       };
 
-      // Write output
-      await ensureDir(opts.outputDir);
-      const base = join(opts.outputDir, `search_${sanitizeQueryForFilename(query)}`);
-      const fmt = opts.format as string;
+      // Output
+      await writeOutput(opts, `search_${sanitizeQueryForFilename(query)}`, { json: searchToJson(result), md: searchToMarkdown(result) });
 
-      if (fmt === 'json' || fmt === 'both') {
-        await writeFile(`${base}.json`, searchToJson(result));
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(`  Query: "${query}"`);
+        console.log(`  Total tweets: ${result.stats.totalTweets}`);
+        console.log(`  Pages fetched: ${pagesFetched}`);
+        if (result.stats.dateRange.from) {
+          console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
+        }
       }
-      if (fmt === 'md' || fmt === 'both') {
-        await writeFile(`${base}.md`, searchToMarkdown(result));
-      }
-
-      // Summary
       console.log();
-      console.log(chalk.bold('Results'));
-      console.log(`  Query: "${query}"`);
-      console.log(`  Total tweets: ${result.stats.totalTweets}`);
-      console.log(`  Pages fetched: ${pagesFetched}`);
-      if (result.stats.dateRange.from) {
-        console.log(`  Date range: ${new Date(result.stats.dateRange.from).toLocaleDateString()} — ${new Date(result.stats.dateRange.to!).toLocaleDateString()}`);
+    } catch (err) {
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+  });
+
+// ─── profile command ──────────────────────────────────────────────────────────
+
+program
+  .command('profile')
+  .description('Fetch a user profile')
+  .argument(
+    '<input>',
+    'Username, @username, or profile URL (e.g. elonmusk, @elonmusk, https://x.com/elonmusk)',
+  )
+  .option('--debug', 'Save raw API response')
+  .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
+  .option('-o, --output-dir <dir>', 'Output directory', './output')
+  .action(async (input: string, opts) => {
+    try {
+      const username = parseUsername(input);
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
+
+      const config: ConversationConfig = {
+        ...DEFAULT_CONFIG,
+        debugMode: opts.debug ?? false,
+      };
+      const api = new TwitterApi({ apiKey: auth.apiKey, apiHost: auth.host283, config });
+
+      const spinner = ora('Fetching profile...').start();
+      const profile = await api.fetchUserProfile(username);
+      spinner.succeed(`@${profile.handle} — ${profile.name}`);
+
+      // Output
+      await writeOutput(opts, `${profile.handle}_profile`, { json: profileToJson(profile), md: profileToMarkdown(profile) });
+
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Profile'));
+        console.log(`  Name: ${profile.name} (@${profile.handle})`);
+        if (profile.isVerified) {
+          console.log(`  Verified: ✓${profile.verifiedType ? ` ${profile.verifiedType}` : ''}`);
+        }
+        if (profile.bio) {
+          const shortBio = profile.bio.length > 120 ? profile.bio.substring(0, 120) + '...' : profile.bio;
+          console.log(`  Bio: ${shortBio}`);
+        }
+        console.log(`  Followers: ${profile.followerCount.toLocaleString()} | Following: ${profile.followingCount.toLocaleString()}`);
+        console.log(`  Tweets: ${profile.tweetCount.toLocaleString()} | Likes: ${profile.likeCount.toLocaleString()}`);
       }
-      console.log(`  Output: ${opts.outputDir}/`);
       console.log();
     } catch (err) {
       console.error(chalk.red(err instanceof Error ? err.message : String(err)));

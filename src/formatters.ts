@@ -1,6 +1,6 @@
 // Output formatters for conversation trees
 
-import type { ConversationTree, TweetNode, UserTweetsResult, SearchResult, RawTweet } from './types/index.js';
+import type { ConversationTree, TweetNode, UserTweetsResult, SearchResult, RawTweet, UserProfile } from './types/index.js';
 
 export function toJson(tree: ConversationTree): string {
   return JSON.stringify(
@@ -148,6 +148,45 @@ export function searchToMarkdown(result: SearchResult): string {
     }
     out += `>\n> [Link](${tweetUrl})\n\n`;
   }
+
+  return out;
+}
+
+// ─── Profile Formatters ──────────────────────────────────────────────────────
+
+export function profileToJson(profile: UserProfile): string {
+  return JSON.stringify(profile, null, 2);
+}
+
+export function profileToMarkdown(profile: UserProfile): string {
+  let out = `# ${profile.name} (@${profile.handle})\n\n`;
+
+  if (profile.isVerified) {
+    out += `**Verified:** ✓${profile.verifiedType ? ` ${profile.verifiedType}` : ''}\n`;
+  }
+  if (profile.bio) {
+    out += `**Bio:** ${profile.bio}\n`;
+  }
+  if (profile.location) {
+    out += `**Location:** ${profile.location}\n`;
+  }
+  if (profile.website) {
+    out += `**Website:** ${profile.website}\n`;
+  }
+
+  const joined = new Date(profile.createdAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  out += `**Joined:** ${joined}\n`;
+
+  out += `\n## Stats\n\n`;
+  out += `| Followers | Following | Tweets | Media | Likes |\n`;
+  out += `|-----------|-----------|--------|-------|-------|\n`;
+  out += `| ${profile.followerCount.toLocaleString()} | ${profile.followingCount.toLocaleString()} | ${profile.tweetCount.toLocaleString()} | ${profile.mediaCount.toLocaleString()} | ${profile.likeCount.toLocaleString()} |\n`;
+
+  out += `\n**Profile:** https://x.com/${profile.handle}\n`;
 
   return out;
 }

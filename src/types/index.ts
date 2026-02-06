@@ -108,6 +108,28 @@ export interface SearchResult {
   };
 }
 
+/** User profile as extracted from API 283 /UserResultByScreenName */
+export interface UserProfile {
+  id: string;
+  handle: string;
+  name: string;
+  bio: string;
+  location: string;
+  website: string | null;
+  avatarUrl: string;
+  bannerUrl: string | null;
+  createdAt: string; // ISO 8601
+  followerCount: number;
+  followingCount: number;
+  tweetCount: number;
+  mediaCount: number;
+  likeCount: number;
+  isVerified: boolean;
+  verifiedType: string | null;
+  pinnedTweetIds: string[];
+  profileImageShape: string;
+}
+
 export const DEFAULT_CONFIG: ConversationConfig = {
   includeQuotes: true,
   detailMaxPages: 25,
