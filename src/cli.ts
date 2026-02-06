@@ -189,7 +189,7 @@ program
     '<input>',
     'Username, @username, or profile URL (e.g. elonmusk, @elonmusk, https://x.com/elonmusk)',
   )
-  .option('-l, --limit <n>', 'Max tweets to fetch (0 = unlimited)', parseInt, 100)
+  .option('-l, --limit <n>', 'Max tweets to fetch (0 = unlimited)', (v: string) => parseInt(v, 10), 100)
   .option('--from <date>', 'Start date (YYYY-MM-DD)')
   .option('--to <date>', 'End date (YYYY-MM-DD)')
   .option('--include-replies', 'Also fetch user replies')
@@ -280,7 +280,7 @@ program
     '<input>',
     'Username, @username, or profile URL (e.g. elonmusk, @elonmusk, https://x.com/elonmusk)',
   )
-  .option('-l, --limit <n>', 'Max replies to fetch (0 = unlimited)', parseInt, 100)
+  .option('-l, --limit <n>', 'Max replies to fetch (0 = unlimited)', (v: string) => parseInt(v, 10), 100)
   .option('--from <date>', 'Start date (YYYY-MM-DD)')
   .option('--to <date>', 'End date (YYYY-MM-DD)')
   .option('--debug', 'Save raw API responses')
@@ -363,7 +363,7 @@ program
   .command('search')
   .description('Search tweets (supports Twitter advanced operators)')
   .argument('<query>', 'Search query string (e.g. "from:elonmusk", "bitcoin min_faves:100")')
-  .option('-l, --limit <n>', 'Max tweets to fetch (0 = unlimited)', parseInt, 100)
+  .option('-l, --limit <n>', 'Max tweets to fetch (0 = unlimited)', (v: string) => parseInt(v, 10), 100)
   .option('-s, --sort <order>', 'Sort order: top, recent', 'recent')
   .option('--debug', 'Save raw API responses')
   .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
