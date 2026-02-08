@@ -5,24 +5,26 @@ description: "Fetch and analyze Twitter/X data using the twx CLI tool. Use when 
 
 # twx — Twitter/X Data Extraction
 
-CLI tool at `/Users/vicnaum/github/vics-twitter-tools/twitter-toolkit/` that fetches tweets, threads, timelines, replies, and search results from Twitter/X via RapidAPI.
+Globally installed CLI tool that fetches tweets, threads, timelines, replies, and search results from Twitter/X via RapidAPI.
 
 ## Setup Check
 
-Before running any command, verify twx is ready:
+Before running any command, check auth status:
 
 ```bash
-# Check if dependencies are installed
-ls /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit/node_modules/.package-lock.json 2>/dev/null || (cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && pnpm install)
+twx auth
+```
 
-# Check auth status
-cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth
+If `twx` is not found, tell the user to install it:
+
+```bash
+npm install -g github:vicnaum/vics-twitter-toolkit
 ```
 
 If no API key is found, ask the user to provide their RapidAPI key, then run:
 
 ```bash
-cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts auth <key>
+twx auth <key>
 ```
 
 The user needs a RapidAPI subscription to one or both of:
@@ -31,8 +33,6 @@ The user needs a RapidAPI subscription to one or both of:
 
 ## Running Commands
 
-All commands use: `cd /Users/vicnaum/github/vics-twitter-tools/twitter-toolkit && npx tsx src/cli.ts <command> [args]`
-
 Always use `-f json` for analysis tasks (structured data). Use `-f md` for human-readable output. Use `-o /tmp/twx` or another temp dir to avoid polluting the project directory.
 
 ### Global flag: `-p` (print to terminal)
@@ -40,8 +40,8 @@ Always use `-f json` for analysis tasks (structured data). Use `-f md` for human
 Add `-p` before the command to print output to stdout instead of writing files. Useful for quick lookups or when piping output:
 
 ```bash
-npx tsx src/cli.ts -p profile solana
-npx tsx src/cli.ts -p search "bitcoin" --limit 5 -f json
+twx -p profile solana
+twx -p search "bitcoin" --limit 5 -f json
 ```
 
 When `-p` is used with `-f both`, markdown is printed.
@@ -49,9 +49,9 @@ When `-p` is used with `-f both`, markdown is printed.
 ### Fetch User Profile
 
 ```bash
-npx tsx src/cli.ts profile solana -f json -o /tmp/twx
-npx tsx src/cli.ts profile @elonmusk -f json -o /tmp/twx
-npx tsx src/cli.ts profile "https://x.com/levelsio" -f json -o /tmp/twx
+twx profile solana -f json -o /tmp/twx
+twx profile @elonmusk -f json -o /tmp/twx
+twx profile "https://x.com/levelsio" -f json -o /tmp/twx
 ```
 
 Flags: `-f json|md|both`, `-o <dir>`, `--debug`
@@ -66,9 +66,9 @@ JSON output structure for profiles:
 ### Fetch User Timeline
 
 ```bash
-npx tsx src/cli.ts user-tweets elonmusk --limit 50 -f json -o /tmp/twx
-npx tsx src/cli.ts user-tweets @elonmusk --from 2024-01-01 --to 2024-06-30 -f json -o /tmp/twx
-npx tsx src/cli.ts user-tweets "https://x.com/elonmusk" --include-replies --limit 200 -f json -o /tmp/twx
+twx user-tweets elonmusk --limit 50 -f json -o /tmp/twx
+twx user-tweets @elonmusk --from 2024-01-01 --to 2024-06-30 -f json -o /tmp/twx
+twx user-tweets "https://x.com/elonmusk" --include-replies --limit 200 -f json -o /tmp/twx
 ```
 
 Flags: `-l/--limit <n>` (0=unlimited, default 100), `--from/--to <YYYY-MM-DD>`, `--include-replies`, `-f json|md|both`, `-o <dir>`
@@ -76,7 +76,7 @@ Flags: `-l/--limit <n>` (0=unlimited, default 100), `--from/--to <YYYY-MM-DD>`, 
 ### Fetch User Replies Only
 
 ```bash
-npx tsx src/cli.ts user-replies elonmusk --limit 50 -f json -o /tmp/twx
+twx user-replies elonmusk --limit 50 -f json -o /tmp/twx
 ```
 
 Same flags as user-tweets (minus --include-replies).
@@ -84,9 +84,9 @@ Same flags as user-tweets (minus --include-replies).
 ### Search Tweets
 
 ```bash
-npx tsx src/cli.ts search "bitcoin" --limit 50 -f json -o /tmp/twx
-npx tsx src/cli.ts search "from:elonmusk" --limit 50 --sort top -f json -o /tmp/twx
-npx tsx src/cli.ts search "bitcoin min_faves:100 since:2024-01-01" --sort top -f json -o /tmp/twx
+twx search "bitcoin" --limit 50 -f json -o /tmp/twx
+twx search "from:elonmusk" --limit 50 --sort top -f json -o /tmp/twx
+twx search "bitcoin min_faves:100 since:2024-01-01" --sort top -f json -o /tmp/twx
 ```
 
 Flags: `-l/--limit <n>`, `-s/--sort top|recent`, `-f json|md|both`, `-o <dir>`
@@ -117,8 +117,8 @@ Flags: `-l/--limit <n>`, `-s/--sort top|recent`, `-f json|md|both`, `-o <dir>`
 ### Fetch Conversation Thread
 
 ```bash
-npx tsx src/cli.ts thread 2019212107020136611 -f json -o /tmp/twx
-npx tsx src/cli.ts thread "https://x.com/user/status/2019212107020136611" -f json -o /tmp/twx
+twx thread 2019212107020136611 -f json -o /tmp/twx
+twx thread "https://x.com/user/status/2019212107020136611" -f json -o /tmp/twx
 ```
 
 Flags: `--no-quotes`, `--detail-max-pages <n>`, `--search-max-pages <n>`, `--concurrency <n>`, `-f json|md|both`, `-o <dir>`
