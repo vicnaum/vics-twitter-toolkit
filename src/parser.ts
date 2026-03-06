@@ -6,7 +6,7 @@
 // - parseViewCount handles comma-separated strings
 
 import { z } from 'zod';
-import type { RawTweet } from './types/index.js';
+import type { RawTweet, EngagingUser } from './types/index.js';
 import { parseTwitterDate, sanitizeString, parseViewCount, log } from './utils/index.js';
 
 // Zod schema at module level — validated once, reused per call
@@ -219,6 +219,126 @@ export function parseTweetDetailResponse(
   const instructions = response.data?.timeline_response?.instructions;
   if (!instructions || !Array.isArray(instructions)) {
     log('No instructions found in TweetDetail response', 'warn');
+    return { tweets: [] };
+  }
+  return parseInstructions(instructions, includeQuotes);
+}
+
+// ─── Engagers (Favoriters / Retweeters) parsing ─────────────────────────────
+
+/** Parse a single user_results.result into an EngagingUser */
+function parseUserFromResult(result: any): EngagingUser | null {
+  if (!result) return null;
+
+  // Handle both API 283 formats: core/profile_bio vs legacy
+  const handle = result.core?.screen_name || result.legacy?.screen_name;
+  const name = result.core?.name || result.legacy?.name;
+  const id = result.rest_id;
+
+  if (!id || !handle) return null;
+
+  return {
+    id,
+    handle: sanitizeString(handle),
+    name: sanitizeString(name || ''),
+    bio: sanitizeString(
+      result.profile_bio?.description || result.legacy?.description || '',
+    ),
+    followerCount:
+      result.relationship_counts?.followers ??
+      result.legacy?.followers_count ??
+      0,
+    followingCount:
+      result.relationship_counts?.following ??
+      result.legacy?.friends_count ??
+      0,
+    isVerified:
+      result.verification?.is_blue_verified ??
+      result.legacy?.verified ??
+      false,
+    avatarUrl: (
+      result.avatar?.image_url ||
+      result.legacy?.profile_image_url_https ||
+      ''
+    ).replace('_normal', '_400x400'),
+  };
+}
+
+/** Try to find instructions array from various response paths */
+function findInstructions(response: any): any[] | null {
+  const candidates = [
+    response?.data?.favoriters_timeline?.timeline?.instructions,
+    response?.data?.retweeters_timeline?.timeline?.instructions,
+    response?.data?.timeline_response?.instructions,
+    response?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length > 0) return c;
+  }
+  return null;
+}
+
+/** Parse a Favoriters/Retweeters response into users + cursor */
+export function parseEngagersResponse(
+  response: any,
+): { users: EngagingUser[]; nextCursor?: string } {
+  const instructions = findInstructions(response);
+  if (!instructions) {
+    log('No instructions found in engagers response', 'warn');
+    return { users: [] };
+  }
+
+  const users: EngagingUser[] = [];
+  let nextCursor: string | undefined;
+
+  for (const instruction of instructions) {
+    if (instruction.__typename === 'TimelineAddEntries' && instruction.entries) {
+      for (const entry of instruction.entries) {
+        const content = entry.content;
+        if (!content) continue;
+
+        // Cursor entries
+        if (content.__typename === 'TimelineTimelineCursor') {
+          const cursorType = content.cursor_type || content.cursorType;
+          if (cursorType === 'Bottom' && content.value) {
+            nextCursor = content.value;
+          }
+          continue;
+        }
+
+        // User entries
+        if (content.__typename === 'TimelineTimelineItem' && content.content) {
+          const uc = content.content;
+          if (uc.__typename === 'TimelineUser') {
+            const userResult =
+              uc.user_results?.result ?? uc.user_result?.result;
+            const user = parseUserFromResult(userResult);
+            if (user) users.push(user);
+          }
+        }
+      }
+    } else if (instruction.__typename === 'TimelineReplaceEntry' && instruction.entry) {
+      const content = instruction.entry.content;
+      if (content && content.__typename === 'TimelineTimelineCursor') {
+        const cursorType = content.cursor_type || content.cursorType;
+        if (cursorType === 'Bottom' && content.value) {
+          nextCursor = content.value;
+        }
+      }
+    }
+  }
+
+  return { users, nextCursor };
+}
+
+/** Parse a TweetQuotes response into tweets + cursor */
+export function parseQuotesResponse(
+  response: any,
+  includeQuotes: boolean = true,
+): { tweets: RawTweet[]; nextCursor?: string } {
+  const instructions = findInstructions(response);
+  if (!instructions) {
+    log('No instructions found in quotes response', 'warn');
     return { tweets: [] };
   }
   return parseInstructions(instructions, includeQuotes);

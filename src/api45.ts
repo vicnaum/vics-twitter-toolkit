@@ -214,6 +214,10 @@ export class TwitterApi45 {
       log(`search page ${page}: ${timeline.length} tweets, ${newCount} new`);
 
       if (!unlimited && collected.length >= config.limit) break;
+      if (newCount === 0) {
+        log(`search: no new unique tweets on page ${page}, stopping`);
+        break;
+      }
       if (!next_cursor) break;
       cursor = next_cursor;
     }
@@ -306,6 +310,10 @@ export class TwitterApi45 {
       }
 
       if (!unlimited && seen.size >= limit) break;
+      if (newCount === 0) {
+        log(`${endpoint}: no new unique tweets on page ${page}, stopping`);
+        break;
+      }
       if (!next_cursor) break;
       cursor = next_cursor;
     }

@@ -1,6 +1,6 @@
 ---
 name: twx
-description: "Fetch and analyze Twitter/X data using the twx CLI tool. Use when the user wants to: (1) Analyze a Twitter user's tweets, timeline, or posting patterns, (2) Fetch a conversation thread or replies to a tweet, (3) Search Twitter for tweets matching a query, (4) Research Twitter accounts or topics, (5) Any task involving Twitter/X data extraction. Triggers on mentions of Twitter, X, tweets, threads, timelines, tweet search, or Twitter usernames/URLs."
+description: "Fetch and analyze Twitter/X data using the twx CLI tool. Use when the user wants to: (1) Analyze a Twitter user's tweets, timeline, or posting patterns, (2) Fetch a conversation thread or replies to a tweet, (3) Search Twitter for tweets matching a query, (4) Research Twitter accounts or topics, (5) Fetch retweeters or quote tweets for a tweet, (6) Any task involving Twitter/X data extraction. Triggers on mentions of Twitter, X, tweets, threads, timelines, tweet search, retweets, quotes, or Twitter usernames/URLs."
 ---
 
 # twx — Twitter/X Data Extraction
@@ -123,6 +123,32 @@ twx thread "https://x.com/user/status/2019212107020136611" -f json -o /tmp/twx
 
 Flags: `--no-quotes`, `--detail-max-pages <n>`, `--search-max-pages <n>`, `--concurrency <n>`, `-f json|md|both`, `-o <dir>`
 
+### Fetch Retweeters of a Tweet
+
+```bash
+twx retweeters 2029579972688379928 -f json -o /tmp/twx
+twx retweeters "https://x.com/user/status/2029579972688379928" -f json -o /tmp/twx
+```
+
+Flags: `--max-pages <n>` (default 50), `--debug`, `-f json|md|both`, `-o <dir>`
+
+Returns list of users who retweeted, with handle, name, bio, follower/following counts, verified status.
+
+### Fetch Quote Tweets
+
+```bash
+twx quotes 2029579972688379928 -f json -o /tmp/twx
+twx quotes "https://x.com/user/status/2029579972688379928" -f json -o /tmp/twx
+```
+
+Flags: `--max-pages <n>` (default 50), `--debug`, `-f json|md|both`, `-o <dir>`
+
+Returns tweets that quoted the given tweet, with full tweet data (text, author, engagement counts).
+
+### Note on Likers
+
+The `TweetFavoriters` API endpoint does NOT work — Twitter made likes private in 2024, so the API returns empty. To get likers, you'd need to capture a HAR file from the browser while scrolling the likes panel (requires being logged in).
+
 ## Input Formats
 
 All commands accept flexible input:
@@ -148,6 +174,16 @@ JSON output structure for profiles:
 JSON output structure for threads:
 ```json
 {"root":{"id":"...","text":"...","author":{...},"children":[...]},"stats":{"totalTweets":50,"danglingParents":1}}
+```
+
+JSON output structure for retweeters:
+```json
+{"tweetId":"...","type":"retweeters","stats":{"totalUsers":71,"pagesFetched":2},"users":[{"id":"...","handle":"...","name":"...","bio":"...","followerCount":0,"followingCount":0,"isVerified":false,"avatarUrl":"..."}]}
+```
+
+JSON output structure for quotes:
+```json
+{"tweetId":"...","stats":{"totalTweets":32,"pagesFetched":3},"tweets":[{"id":"...","text":"...","createdAt":"...","author":{"handle":"...","name":"..."},"favoriteCount":0,"retweetCount":0,"viewCount":0}]}
 ```
 
 ## Error Handling

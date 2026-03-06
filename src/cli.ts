@@ -10,14 +10,14 @@ import ora from 'ora';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
-import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult, SearchConfig, SearchResult, UserProfile } from './types/index.js';
+import type { ConversationConfig, RawTweet, TweetNode, UserTweetsConfig, UserTweetsResult, SearchConfig, SearchResult, UserProfile, TweetEngagersResult, TweetQuotesResult } from './types/index.js';
 import { DEFAULT_CONFIG } from './types/index.js';
 import { parseTweetId, parseUsername } from './utils/input-parser.js';
 import { ensureDir, sanitizeQueryForFilename } from './utils/index.js';
 import { TwitterApi } from './api.js';
 import { TwitterApi45 } from './api45.js';
 import { buildConversationTree } from './tree.js';
-import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown, profileToJson, profileToMarkdown } from './formatters.js';
+import { toJson, toMarkdown, tweetsToJson, tweetsToMarkdown, searchToJson, searchToMarkdown, profileToJson, profileToMarkdown, engagersToJson, engagersToMarkdown, quotesToJson, quotesToMarkdown } from './formatters.js';
 import { resolveAuth, saveApiKey, loadConfig, getConfigPath } from './config.js';
 
 const program = new Command();
@@ -482,6 +482,114 @@ program
         }
         console.log(`  Followers: ${profile.followerCount.toLocaleString()} | Following: ${profile.followingCount.toLocaleString()}`);
         console.log(`  Tweets: ${profile.tweetCount.toLocaleString()} | Likes: ${profile.likeCount.toLocaleString()}`);
+      }
+      console.log();
+    } catch (err) {
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+  });
+
+// ─── retweeters command ──────────────────────────────────────────────────────
+
+program
+  .command('retweeters')
+  .description('Fetch users who retweeted a tweet')
+  .argument(
+    '<input>',
+    'Tweet ID or URL (e.g. 1234567890 or https://x.com/user/status/1234567890)',
+  )
+  .option('--max-pages <n>', 'Max pages to fetch', parseInt, 50)
+  .option('--debug', 'Save raw API responses')
+  .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
+  .option('-o, --output-dir <dir>', 'Output directory', './output')
+  .action(async (input: string, opts) => {
+    try {
+      const tweetId = parseTweetId(input);
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
+
+      const config: ConversationConfig = {
+        ...DEFAULT_CONFIG,
+        debugMode: opts.debug ?? false,
+      };
+      const api = new TwitterApi({ apiKey: auth.apiKey, apiHost: auth.host283, config });
+
+      console.log(chalk.bold(`\nFetching retweeters for tweet ${tweetId}\n`));
+
+      const spinner = ora('Fetching retweeters...').start();
+      const { users, pagesFetched } = await api.fetchTweetRetweeters(tweetId, opts.maxPages);
+      spinner.succeed(`Fetched ${users.length} retweeters from ${pagesFetched} pages`);
+
+      const result: TweetEngagersResult = {
+        tweetId,
+        type: 'retweeters',
+        users,
+        stats: { totalUsers: users.length, pagesFetched },
+      };
+
+      await writeOutput(opts, `${tweetId}_retweeters`, { json: engagersToJson(result), md: engagersToMarkdown(result) });
+
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(`  Tweet: ${tweetId}`);
+        console.log(`  Retweeters: ${users.length}`);
+        console.log(`  Pages fetched: ${pagesFetched}`);
+      }
+      console.log();
+    } catch (err) {
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+  });
+
+// ─── quotes command ──────────────────────────────────────────────────────────
+
+program
+  .command('quotes')
+  .description('Fetch tweets that quoted a tweet')
+  .argument(
+    '<input>',
+    'Tweet ID or URL (e.g. 1234567890 or https://x.com/user/status/1234567890)',
+  )
+  .option('--max-pages <n>', 'Max pages to fetch', parseInt, 50)
+  .option('--debug', 'Save raw API responses')
+  .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
+  .option('-o, --output-dir <dir>', 'Output directory', './output')
+  .action(async (input: string, opts) => {
+    try {
+      const tweetId = parseTweetId(input);
+      const auth = await resolveAuth({ apiKey: program.opts().apiKey });
+
+      const config: ConversationConfig = {
+        ...DEFAULT_CONFIG,
+        debugMode: opts.debug ?? false,
+      };
+      const api = new TwitterApi({ apiKey: auth.apiKey, apiHost: auth.host283, config });
+
+      console.log(chalk.bold(`\nFetching quotes for tweet ${tweetId}\n`));
+
+      const spinner = ora('Fetching quotes...').start();
+      const { tweets, pagesFetched } = await api.fetchTweetQuotes(tweetId, opts.maxPages);
+      spinner.succeed(`Fetched ${tweets.length} quotes from ${pagesFetched} pages`);
+
+      // Sort by date descending
+      tweets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const result: TweetQuotesResult = {
+        tweetId,
+        tweets,
+        stats: { totalTweets: tweets.length, pagesFetched },
+      };
+
+      await writeOutput(opts, `${tweetId}_quotes`, { json: quotesToJson(result), md: quotesToMarkdown(result) });
+
+      if (!program.opts().print) {
+        console.log();
+        console.log(chalk.bold('Results'));
+        console.log(`  Tweet: ${tweetId}`);
+        console.log(`  Quotes: ${tweets.length}`);
+        console.log(`  Pages fetched: ${pagesFetched}`);
       }
       console.log();
     } catch (err) {

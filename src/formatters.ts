@@ -1,6 +1,6 @@
 // Output formatters for conversation trees
 
-import type { ConversationTree, TweetNode, UserTweetsResult, SearchResult, RawTweet, UserProfile } from './types/index.js';
+import type { ConversationTree, TweetNode, UserTweetsResult, SearchResult, RawTweet, UserProfile, TweetEngagersResult, TweetQuotesResult } from './types/index.js';
 
 export function toJson(tree: ConversationTree): string {
   return JSON.stringify(
@@ -147,6 +147,82 @@ export function searchToMarkdown(result: SearchResult): string {
       out += `>\n> *${engagement}*\n`;
     }
     out += `>\n> [Link](${tweetUrl})\n\n`;
+  }
+
+  return out;
+}
+
+// ─── Engagers (Likers / Retweeters) Formatters ──────────────────────────────
+
+export function engagersToJson(result: TweetEngagersResult): string {
+  return JSON.stringify(
+    {
+      tweetId: result.tweetId,
+      type: result.type,
+      stats: result.stats,
+      users: result.users,
+    },
+    null,
+    2,
+  );
+}
+
+export function engagersToMarkdown(result: TweetEngagersResult): string {
+  const label = result.type === 'likers' ? 'Likers' : 'Retweeters';
+  const tweetUrl = `https://x.com/i/status/${result.tweetId}`;
+  let out = `# ${label} of Tweet\n\n`;
+  out += `**Tweet:** ${tweetUrl}\n`;
+  out += `**Total ${label.toLowerCase()}:** ${result.stats.totalUsers}`;
+  out += ` | **Pages fetched:** ${result.stats.pagesFetched}\n`;
+  out += '\n---\n\n';
+
+  out += `| # | Handle | Name | Followers | Following | Verified | Bio |\n`;
+  out += `|---|--------|------|-----------|-----------|----------|-----|\n`;
+
+  for (let i = 0; i < result.users.length; i++) {
+    const u = result.users[i]!;
+    const bio = u.bio.replace(/\|/g, '\\|').replace(/\n/g, ' ').substring(0, 80);
+    out += `| ${i + 1} | @${u.handle} | ${u.name} | ${u.followerCount.toLocaleString()} | ${u.followingCount.toLocaleString()} | ${u.isVerified ? '✓' : ''} | ${bio} |\n`;
+  }
+
+  return out;
+}
+
+// ─── Quotes Formatters ──────────────────────────────────────────────────────
+
+export function quotesToJson(result: TweetQuotesResult): string {
+  return JSON.stringify(
+    {
+      tweetId: result.tweetId,
+      stats: result.stats,
+      tweets: result.tweets,
+    },
+    null,
+    2,
+  );
+}
+
+export function quotesToMarkdown(result: TweetQuotesResult): string {
+  const tweetUrl = `https://x.com/i/status/${result.tweetId}`;
+  let out = `# Quotes of Tweet\n\n`;
+  out += `**Original tweet:** ${tweetUrl}\n`;
+  out += `**Total quotes:** ${result.stats.totalTweets}`;
+  out += ` | **Pages fetched:** ${result.stats.pagesFetched}\n`;
+  out += '\n---\n\n';
+
+  for (const tweet of result.tweets) {
+    const date = new Date(tweet.createdAt).toLocaleString();
+    const quoteUrl = `https://x.com/${tweet.author.handle}/status/${tweet.id}`;
+
+    out += `> **@${tweet.author.handle}** — ${date}\n`;
+    for (const line of tweet.text.split('\n')) {
+      out += `> ${line}\n`;
+    }
+    const engagement = formatEngagement(tweet);
+    if (engagement) {
+      out += `>\n> *${engagement}*\n`;
+    }
+    out += `>\n> [Link](${quoteUrl})\n\n`;
   }
 
   return out;

@@ -3,9 +3,9 @@
 // - Config passed as constructor param (no module-level env reads)
 // - Class-based for clean state management and testability
 
-import type { RawTweet, ConversationConfig, UserProfile } from './types/index.js';
+import type { RawTweet, ConversationConfig, UserProfile, EngagingUser } from './types/index.js';
 import { retry, log, fetchWithTimeout, parseRetryAfter, ensureDir, sanitizeString, parseTwitterDate } from './utils/index.js';
-import { parseSearchResponse, parseTweetDetailResponse } from './parser.js';
+import { parseSearchResponse, parseTweetDetailResponse, parseEngagersResponse, parseQuotesResponse } from './parser.js';
 import { writeFile } from 'fs/promises';
 
 export interface ApiClientOptions {
@@ -282,6 +282,130 @@ export class TwitterApi {
     await this.saveRawResponse(username, 'profile', response, 0);
 
     return parseUserProfile(response, username);
+  }
+
+  // ─── Engagers (Favoriters / Retweeters) ──────────────────────────────────
+
+  /** Generic method to fetch users who engaged with a tweet (favoriters or retweeters) */
+  private async fetchTweetEngagers(
+    tweetId: string,
+    endpoint: string,
+    label: string,
+    maxPages: number,
+  ): Promise<{ users: EngagingUser[]; pagesFetched: number }> {
+    const allUsers: EngagingUser[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    let page = 0;
+
+    while (page < maxPages) {
+      page++;
+      let url = `https://${this.apiHost}/${endpoint}?tweet_id=${tweetId}`;
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+      log(`${label} page ${page}...`);
+
+      const response = await retry(
+        async () => {
+          const res = await fetchWithTimeout(url, { method: 'GET', headers: this.headers });
+          if (!res.ok) {
+            const err: any = new Error(`${label} API ${res.status} ${res.statusText}`);
+            if (res.status === 429)
+              err.retryAfterMs = parseRetryAfter(res.headers.get('retry-after')) ?? 1000;
+            throw err;
+          }
+          return res.json();
+        },
+        1,
+        label,
+      );
+
+      await this.saveRawResponse(tweetId, `${label.toLowerCase()}_p${page}`, response, 0);
+
+      const { users, nextCursor } = parseEngagersResponse(response);
+
+      let newCount = 0;
+      for (const user of users) {
+        if (!seen.has(user.id)) {
+          seen.add(user.id);
+          allUsers.push(user);
+          newCount++;
+        }
+      }
+
+      log(`${label} page ${page}: ${users.length} users (${newCount} new)`);
+
+      if (users.length === 0 || newCount === 0 || !nextCursor) break;
+      cursor = nextCursor;
+    }
+
+    log(`${label} complete: ${allUsers.length} unique users from ${page} pages`);
+    return { users: allUsers, pagesFetched: page };
+  }
+
+  /** Fetch all users who retweeted a tweet */
+  async fetchTweetRetweeters(
+    tweetId: string,
+    maxPages: number = 50,
+  ): Promise<{ users: EngagingUser[]; pagesFetched: number }> {
+    return this.fetchTweetEngagers(tweetId, 'TweetRetweeters', 'Retweeters', maxPages);
+  }
+
+  // ─── Quotes ─────────────────────────────────────────────────────────────
+
+  /** Fetch all tweets that quoted a tweet */
+  async fetchTweetQuotes(
+    tweetId: string,
+    maxPages: number = 50,
+  ): Promise<{ tweets: RawTweet[]; pagesFetched: number }> {
+    const allTweets: RawTweet[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    let page = 0;
+
+    while (page < maxPages) {
+      page++;
+      let url = `https://${this.apiHost}/TweetQuotes?tweet_id=${tweetId}`;
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+      log(`Quotes page ${page}...`);
+
+      const response = await retry(
+        async () => {
+          const res = await fetchWithTimeout(url, { method: 'GET', headers: this.headers });
+          if (!res.ok) {
+            const err: any = new Error(`Quotes API ${res.status} ${res.statusText}`);
+            if (res.status === 429)
+              err.retryAfterMs = parseRetryAfter(res.headers.get('retry-after')) ?? 1000;
+            throw err;
+          }
+          return res.json();
+        },
+        1,
+        'Quotes',
+      );
+
+      await this.saveRawResponse(tweetId, `quotes_p${page}`, response, 0);
+
+      const { tweets, nextCursor } = parseQuotesResponse(response);
+
+      let newCount = 0;
+      for (const t of tweets) {
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          allTweets.push(t);
+          newCount++;
+        }
+      }
+
+      log(`Quotes page ${page}: ${tweets.length} tweets (${newCount} new)`);
+
+      if (tweets.length === 0 || newCount === 0 || !nextCursor) break;
+      cursor = nextCursor;
+    }
+
+    log(`Quotes complete: ${allTweets.length} unique tweets from ${page} pages`);
+    return { tweets: allTweets, pagesFetched: page };
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

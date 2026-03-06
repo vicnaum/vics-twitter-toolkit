@@ -130,6 +130,39 @@ export interface UserProfile {
   profileImageShape: string;
 }
 
+/** A user who engaged with a tweet (liked, retweeted) */
+export interface EngagingUser {
+  id: string;
+  handle: string;
+  name: string;
+  bio: string;
+  followerCount: number;
+  followingCount: number;
+  isVerified: boolean;
+  avatarUrl: string;
+}
+
+/** Result of fetching tweet engagers (likers/retweeters) */
+export interface TweetEngagersResult {
+  tweetId: string;
+  type: 'likers' | 'retweeters';
+  users: EngagingUser[];
+  stats: {
+    totalUsers: number;
+    pagesFetched: number;
+  };
+}
+
+/** Result of fetching tweet quotes */
+export interface TweetQuotesResult {
+  tweetId: string;
+  tweets: RawTweet[];
+  stats: {
+    totalTweets: number;
+    pagesFetched: number;
+  };
+}
+
 export const DEFAULT_CONFIG: ConversationConfig = {
   includeQuotes: true,
   detailMaxPages: 25,
