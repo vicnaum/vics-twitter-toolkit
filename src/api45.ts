@@ -3,7 +3,7 @@
 // Ported from twitter-stats with Zod validation and RawTweet conversion.
 
 import { z } from 'zod';
-import type { RawTweet, UserTweetsConfig, SearchConfig } from './types/index.js';
+import type { RawTweet, EmbeddedTweet, UserTweetsConfig, SearchConfig } from './types/index.js';
 import {
   retry,
   log,
@@ -42,6 +42,7 @@ export const Api45TweetSchema = z.object({
   media: z.any().optional(),
   entities: z.any().optional(),
   quoted: z.any().optional(),
+  retweeted_tweet: z.any().optional(),
 });
 
 export const Api45TimelineResponseSchema = z.object({
@@ -364,6 +365,42 @@ export class TwitterApi45 {
 
 // ─── Tweet Conversion ────────────────────────────────────────────────────────
 
+/** Extract media URLs from api45 media payloads (array or {photo,video,...} object) */
+function extractMediaUrls(media: unknown): string[] | undefined {
+  if (!media) return undefined;
+  const items: unknown[] = Array.isArray(media)
+    ? media
+    : [
+        ...((media as any).photo ?? []),
+        ...((media as any).video ?? []),
+        ...((media as any).animated_gif ?? []),
+      ];
+  const urls: string[] = [];
+  for (const m of items) {
+    if (!m) continue;
+    if (typeof m === 'string') {
+      urls.push(m);
+      continue;
+    }
+    const u = (m as any).media_url_https ?? (m as any).media_url ?? (m as any).url;
+    if (typeof u === 'string') urls.push(u);
+  }
+  return urls.length > 0 ? urls : undefined;
+}
+
+/** Convert a nested quoted/retweeted tweet payload to EmbeddedTweet */
+function toEmbedded(t: any): EmbeddedTweet | undefined {
+  if (!t || typeof t.tweet_id !== 'string') return undefined;
+  return {
+    id: t.tweet_id,
+    text: sanitizeString(t.text ?? ''),
+    authorHandle: t.author?.screen_name ?? undefined,
+    createdAt: t.created_at ? parseTwitterDate(t.created_at) : undefined,
+    mediaUrls: extractMediaUrls(t.media),
+    quoted: toEmbedded(t.quoted),
+  };
+}
+
 /** Convert an API 45 tweet to our unified RawTweet format */
 export function convertApi45Tweet(raw: Api45Tweet, fallbackHandle?: string): RawTweet {
   return {
@@ -383,5 +420,8 @@ export function convertApi45Tweet(raw: Api45Tweet, fallbackHandle?: string): Raw
     quoteCount: raw.quotes ?? undefined,
     viewCount: parseViewCount(raw.views ?? undefined),
     bookmarkCount: raw.bookmarks ?? undefined,
+    mediaUrls: extractMediaUrls(raw.media),
+    quotedTweet: toEmbedded(raw.quoted),
+    retweetedTweet: toEmbedded(raw.retweeted_tweet),
   };
 }

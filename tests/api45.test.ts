@@ -275,6 +275,93 @@ describe('convertApi45Tweet', () => {
   });
 });
 
+// ─── Media & Embedded Tweet Extraction ──────────────────────────────────────
+
+describe('media and embedded tweet extraction', () => {
+  const baseTweet: Api45Tweet = {
+    tweet_id: '12345',
+    text: 'Test tweet content',
+    created_at: 'Mon Jan 01 12:00:00 +0000 2024',
+    author: { screen_name: 'testuser', name: 'Test User' },
+  };
+
+  it('extracts media URLs from object form ({photo, video})', () => {
+    const withMedia: Api45Tweet = {
+      ...baseTweet,
+      media: {
+        photo: [{ media_url_https: 'https://pbs.twimg.com/media/abc.jpg' }],
+        video: [{ media_url_https: 'https://pbs.twimg.com/video/def.mp4' }],
+      },
+    };
+    const result = convertApi45Tweet(withMedia);
+    expect(result.mediaUrls).toEqual([
+      'https://pbs.twimg.com/media/abc.jpg',
+      'https://pbs.twimg.com/video/def.mp4',
+    ]);
+  });
+
+  it('extracts media URLs from array form', () => {
+    const withMedia: Api45Tweet = {
+      ...baseTweet,
+      media: [{ media_url_https: 'https://pbs.twimg.com/media/xyz.jpg' }],
+    };
+    const result = convertApi45Tweet(withMedia);
+    expect(result.mediaUrls).toEqual(['https://pbs.twimg.com/media/xyz.jpg']);
+  });
+
+  it('omits mediaUrls when no media present', () => {
+    const result = convertApi45Tweet(baseTweet);
+    expect(result.mediaUrls).toBeUndefined();
+  });
+
+  it('maps quoted tweet to quotedTweet', () => {
+    const quote: Api45Tweet = {
+      ...baseTweet,
+      quoted: {
+        tweet_id: '888',
+        text: 'quoted content',
+        created_at: 'Sun Dec 31 12:00:00 +0000 2023',
+        author: { screen_name: 'quotee', name: 'Quotee' },
+        media: { photo: [{ media_url_https: 'https://pbs.twimg.com/media/q.jpg' }] },
+      },
+    };
+    const result = convertApi45Tweet(quote);
+    expect(result.quotedTweet).toBeDefined();
+    expect(result.quotedTweet?.id).toBe('888');
+    expect(result.quotedTweet?.text).toBe('quoted content');
+    expect(result.quotedTweet?.authorHandle).toBe('quotee');
+    expect(result.quotedTweet?.mediaUrls).toEqual(['https://pbs.twimg.com/media/q.jpg']);
+  });
+
+  it('maps retweeted_tweet to retweetedTweet, including nested quote', () => {
+    const rt: Api45Tweet = {
+      ...baseTweet,
+      text: 'RT @original: original content',
+      retweeted_tweet: {
+        tweet_id: '777',
+        text: 'original content',
+        author: { screen_name: 'original', name: 'Original' },
+        quoted: { tweet_id: '666', text: 'nested quote' },
+      },
+    };
+    const result = convertApi45Tweet(rt);
+    expect(result.retweetedTweet?.id).toBe('777');
+    expect(result.retweetedTweet?.authorHandle).toBe('original');
+    expect(result.retweetedTweet?.quoted?.id).toBe('666');
+    expect(result.retweetedTweet?.quoted?.text).toBe('nested quote');
+  });
+
+  it('ignores malformed embedded tweets without tweet_id', () => {
+    const malformed: Api45Tweet = {
+      ...baseTweet,
+      quoted: { text: 'no id here' },
+    };
+    const result = convertApi45Tweet(malformed);
+    expect(result.quotedTweet).toBeUndefined();
+    expect(result.isQuote).toBe(true);
+  });
+});
+
 // ─── Author Filtering Logic ─────────────────────────────────────────────────
 
 describe('author filtering (unit logic)', () => {

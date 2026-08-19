@@ -1,5 +1,15 @@
 // Core data structures for the Twitter toolkit
 
+/** A tweet embedded inside another (quoted or retweeted original) */
+export interface EmbeddedTweet {
+  id: string;
+  text: string;
+  authorHandle?: string;
+  createdAt?: string; // ISO 8601
+  mediaUrls?: string[];
+  quoted?: EmbeddedTweet;
+}
+
 /** Raw tweet as extracted from API responses (before tree building) */
 export interface RawTweet {
   id: string;
@@ -18,6 +28,9 @@ export interface RawTweet {
   quoteCount?: number;
   viewCount?: number;
   bookmarkCount?: number;
+  mediaUrls?: string[];
+  quotedTweet?: EmbeddedTweet;
+  retweetedTweet?: EmbeddedTweet;
 }
 
 /** A tweet node in the conversation tree */

@@ -163,8 +163,10 @@ All commands accept flexible input:
 
 JSON output structure for timelines/search:
 ```json
-{"username":"...","tweets":[{"id":"...","text":"...","createdAt":"...","author":{"handle":"...","name":"..."},"replyCount":0,"favoriteCount":0,"retweetCount":0,"viewCount":0}],"stats":{...}}
+{"username":"...","tweets":[{"id":"...","text":"...","createdAt":"...","author":{"handle":"...","name":"..."},"replyCount":0,"favoriteCount":0,"retweetCount":0,"viewCount":0,"mediaUrls":["..."],"quotedTweet":{"id":"...","text":"...","authorHandle":"..."},"retweetedTweet":{"id":"...","text":"...","authorHandle":"..."}}],"stats":{...}}
 ```
+
+Tweets with images/videos carry `mediaUrls` (append `?name=orig` to pbs.twimg.com/media URLs for full resolution). Quote tweets embed the quoted tweet's content in `quotedTweet`; retweets embed the original in `retweetedTweet`. All three fields are omitted when not applicable.
 
 JSON output structure for profiles:
 ```json
