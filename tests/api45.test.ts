@@ -63,6 +63,15 @@ describe('Api45TweetSchema', () => {
     const noText = { tweet_id: '1', created_at: 'Mon Jan 01 12:00:00 +0000 2024' };
     expect(Api45TweetSchema.safeParse(noText).success).toBe(false);
   });
+
+  it('accepts null author fields (timeline.php regression)', () => {
+    const nullAuthor = {
+      ...validTweet,
+      author: { screen_name: null, name: null },
+    };
+    const result = Api45TweetSchema.safeParse(nullAuthor);
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('Api45TimelineResponseSchema', () => {
@@ -101,6 +110,22 @@ describe('Api45TimelineResponseSchema', () => {
     if (result.success) {
       expect(result.data.status).toBe('error');
     }
+  });
+
+  it('accepts null next_cursor (timeline.php regression)', () => {
+    const response = {
+      timeline: [
+        {
+          tweet_id: '1',
+          text: 'Hello',
+          created_at: 'Mon Jan 01 12:00:00 +0000 2024',
+          author: { screen_name: null, name: null },
+        },
+      ],
+      next_cursor: null,
+    };
+    const result = Api45TimelineResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
   });
 });
 
@@ -222,6 +247,16 @@ describe('convertApi45Tweet', () => {
     const result = convertApi45Tweet(noAuthor);
     expect(result.author.handle).toBe('unknown');
     expect(result.author.name).toBe('Unknown');
+  });
+
+  it('uses fallback handle when author fields are null', () => {
+    const nullAuthor: Api45Tweet = {
+      ...baseTweet,
+      author: { screen_name: null, name: null },
+    };
+    const result = convertApi45Tweet(nullAuthor, 'joeyroth');
+    expect(result.author.handle).toBe('joeyroth');
+    expect(result.author.name).toBe('joeyroth');
   });
 
   it('falls back to tweet_id when conversation_id missing', () => {

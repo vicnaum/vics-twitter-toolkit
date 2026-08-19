@@ -20,8 +20,9 @@ import { writeFile } from 'fs/promises';
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
 const Api45AuthorSchema = z.object({
-  screen_name: z.string(),
-  name: z.string(),
+  // timeline.php started returning null for these on the requesting user's own tweets
+  screen_name: z.string().nullish(),
+  name: z.string().nullish(),
 });
 
 export const Api45TweetSchema = z.object({
@@ -45,7 +46,7 @@ export const Api45TweetSchema = z.object({
 
 export const Api45TimelineResponseSchema = z.object({
   timeline: z.array(Api45TweetSchema).default([]),
-  next_cursor: z.string().optional(),
+  next_cursor: z.string().nullish(),
   status: z.string().optional(),
 });
 
@@ -271,7 +272,7 @@ export class TwitterApi45 {
 
       for (const raw of timeline) {
         // Author filter (for replies endpoint)
-        if (filterAuthor && raw.author) {
+        if (filterAuthor && raw.author?.screen_name) {
           if (raw.author.screen_name.toLowerCase() !== filterAuthor.toLowerCase()) {
             continue;
           }
@@ -295,7 +296,7 @@ export class TwitterApi45 {
         if (seen.has(raw.tweet_id)) continue;
         seen.add(raw.tweet_id);
 
-        collected.push(convertApi45Tweet(raw));
+        collected.push(convertApi45Tweet(raw, screenname));
         newCount++;
 
         // Limit check
@@ -364,7 +365,7 @@ export class TwitterApi45 {
 // ─── Tweet Conversion ────────────────────────────────────────────────────────
 
 /** Convert an API 45 tweet to our unified RawTweet format */
-export function convertApi45Tweet(raw: Api45Tweet): RawTweet {
+export function convertApi45Tweet(raw: Api45Tweet, fallbackHandle?: string): RawTweet {
   return {
     id: raw.tweet_id,
     parentId: raw.in_reply_to_status_id_str ?? null,
@@ -372,8 +373,8 @@ export function convertApi45Tweet(raw: Api45Tweet): RawTweet {
     text: sanitizeString(raw.text),
     createdAt: parseTwitterDate(raw.created_at),
     author: {
-      handle: sanitizeString(raw.author?.screen_name) || 'unknown',
-      name: sanitizeString(raw.author?.name) || 'Unknown',
+      handle: sanitizeString(raw.author?.screen_name) || fallbackHandle || 'unknown',
+      name: sanitizeString(raw.author?.name) || fallbackHandle || 'Unknown',
     },
     replyCount: raw.replies ?? 0,
     isQuote: !!raw.quoted,
