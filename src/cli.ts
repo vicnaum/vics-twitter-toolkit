@@ -499,7 +499,7 @@ program
     '<input>',
     'Tweet ID or URL (e.g. 1234567890 or https://x.com/user/status/1234567890)',
   )
-  .option('--max-pages <n>', 'Max pages to fetch', parseInt, 50)
+  .option('--max-pages <n>', 'Max pages to fetch', (v: string) => parseInt(v, 10), 50)
   .option('--debug', 'Save raw API responses')
   .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
   .option('-o, --output-dir <dir>', 'Output directory', './output')
@@ -552,7 +552,7 @@ program
     '<input>',
     'Tweet ID or URL (e.g. 1234567890 or https://x.com/user/status/1234567890)',
   )
-  .option('--max-pages <n>', 'Max pages to fetch', parseInt, 50)
+  .option('--max-pages <n>', 'Max pages to fetch', (v: string) => parseInt(v, 10), 50)
   .option('--debug', 'Save raw API responses')
   .option('-f, --format <fmt>', 'Output format: json, md, both', 'both')
   .option('-o, --output-dir <dir>', 'Output directory', './output')
